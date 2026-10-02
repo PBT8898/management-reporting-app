@@ -1,0 +1,9 @@
+export type Property = { id: string; name: string; property_type: string; location: string; acquisition_date: string | null; purchase_price: number | null };
+export type Period = { id: string; period_year: number; period_month: number; label: string; status: string };
+export type IncomeLine = { id: string; property_id: string; period_id: string; account_name: string; account_category: string; actual: number; budget: number; prior_month: number; prior_ytd: number; ytd_actual: number; sort_order: number };
+export type BalanceLine = { id: string; property_id: string; period_id: string; account_name: string; account_category: string; actual: number; prior_period: number; movement_pct: number; sort_order: number };
+export type VarianceType = "budget" | "prior_month" | "prior_ytd";
+export type Explanation = { id: string; income_line_id: string; property_id: string; period_id: string; variance_type: VarianceType; variance_amount: number; variance_pct: number | null; is_material: boolean; explanation: string | null; explanation_source: string | null; confidence: number | null; review_status: string };
+export type Upload = { id: string; property_id: string; period_id: string; file_name: string; file_url: string; uploaded_by: string; created_at: string };
+export type Settings = { id: string; property_id: string; period_id: string; amount_threshold: number; percent_threshold: number };
+export type Snapshot = { properties: Property[]; periods: Period[]; income: IncomeLine[]; balance: BalanceLine[]; explanations: Explanation[]; uploads: Upload[]; settings: Settings[] };
