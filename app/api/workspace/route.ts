@@ -7,8 +7,8 @@ import { mutate } from "@/lib/actions/core";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
-    const [properties, periods, income, balance, explanations, uploads] = await Promise.all([listProperties(), listPeriods(), listIncome(), listBalance(), rows("variance_explanations"), rows("report_uploads")]);
-    return NextResponse.json({ properties, periods: periods.sort((a, b) => b.period_year - a.period_year || b.period_month - a.period_month), income, balance, explanations, uploads, settings: [] }, { headers: { "Cache-Control": "no-store" } });
+    const [properties, periods, income, balance, explanations, uploads, settings] = await Promise.all([listProperties(), listPeriods(), listIncome(), listBalance(), rows("variance_explanations"), rows("report_uploads"), rows("report_settings")]);
+    return NextResponse.json({ properties, periods: periods.sort((a, b) => b.period_year - a.period_year || b.period_month - a.period_month), income, balance, explanations, uploads, settings }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load data. Please check your connection." }, { status: 503 }); }
 }
 export async function POST(request: NextRequest) {
@@ -20,3 +20,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ result });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to save. Please try again." }, { status: 400 }); }
 }
+

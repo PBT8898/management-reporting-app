@@ -1,9 +1,10 @@
-import { saveProperty, deleteProperty } from "@/lib/data/properties";
+import { saveProperty } from "@/lib/data/properties";
 import { savePeriod } from "@/lib/data/periods";
-import { saveLine, deleteLine } from "@/lib/data/lines";
+import { saveLine } from "@/lib/data/lines";
 import { db } from "@/lib/data/db";
 import { text, number, choice, uuid } from "./validation";
 import { variance } from "@/lib/utils/variance";
+import { parseIncomeRows } from "@/lib/utils/paste";
 export async function mutate(operation: string, v: Record<string, unknown>) {
   const id = v.id ? uuid(v.id) : undefined;
   if (operation === "property.save") {
@@ -13,8 +14,12 @@ export async function mutate(operation: string, v: Record<string, unknown>) {
   }
   if (operation.endsWith(".delete")) {
     if (v.confirm !== true || !text(v.reason, "Deletion reason")) throw new Error("Confirm deletion and provide a reason.");
-    if (operation === "property.delete") return deleteProperty(uuid(v.id));
-    if (["income.delete", "balance.delete"].includes(operation)) return deleteLine(operation.startsWith("income") ? "income" : "balance", uuid(v.id));
+    if (["property.delete", "income.delete", "balance.delete"].includes(operation)) {
+      const table_name = ({ "property.delete": "properties", "income.delete": "income_statement_lines", "balance.delete": "balance_sheet_lines" } as Record<string, string>)[operation];
+      const { error } = await db().rpc("delete_reporting_record", { table_name, record_id: uuid(v.id), reason: text(v.reason, "Reason") });
+      if (error) throw new Error(error.message); return { id: v.id };
+    }
+    
   }
   if (operation === "period.save") {
     const year = number(v.period_year, "Year", 1900, 2200), month = number(v.period_month, "Month", 1, 12);
@@ -32,5 +37,18 @@ export async function mutate(operation: string, v: Record<string, unknown>) {
     if (kind === "balance") values.movement_pct = variance(Number(values.actual), Number(values.prior_period)).percent;
     return saveLine(kind, values, id);
   }
+  if (operation === "income.paste" || operation === "settings.save") {
+    const property_id = uuid(v.property_id), period_id = uuid(v.period_id);
+    const { data: period, error: periodError } = await db().from("reporting_periods").select("status").eq("id", period_id).single();
+    if (periodError || period.status !== "open") throw new Error("Reopen the reporting period before editing data.");
+    if (operation === "income.paste") {
+      const batch = parseIncomeRows(text(v.rows, "Spreadsheet rows")).map(row => ({ ...row, property_id, period_id }));
+      const { data, error } = await db().from("income_statement_lines").insert(batch).select();
+      if (error) throw new Error(error.message); return data;
+    }
+    const { data, error } = await db().from("report_settings").upsert({ property_id, period_id, amount_threshold: number(v.amount_threshold, "Amount threshold", 0), percent_threshold: number(v.percent_threshold, "Percent threshold", 0, 10000) }, { onConflict: "property_id,period_id" }).select().single();
+    if (error) throw new Error(error.message); return data;
+  }
   throw new Error("Unknown action.");
 }
+
