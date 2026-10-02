@@ -14,8 +14,6 @@ create table if not exists audit_logs (
 alter table audit_logs enable row level security;
 create policy audit_logs_demo_read on audit_logs for select using(true);
 -- Only database triggers/functions can append audit events; visitors cannot edit or erase them.
-delete from variance_explanations a using variance_explanations b
- where a.income_line_id=b.income_line_id and a.variance_type=b.variance_type and a.created_at>b.created_at;
 create unique index if not exists variance_explanations_line_type on variance_explanations(income_line_id,variance_type);
 alter table variance_explanations add constraint review_status_valid check(review_status in ('unreviewed','draft','approved'));
 alter table variance_explanations add constraint variance_type_valid check(variance_type in ('budget','prior_month','prior_ytd'));
@@ -33,7 +31,7 @@ begin
   if tg_op='INSERT' then
    insert into audit_logs(action_name,actor_id,target_table,target_id,risk_level,details_json)
    values('explanation_created',auth.uid(),tg_table_name,new.id,'low',jsonb_build_object('review_status',new.review_status,'source',new.explanation_source,'confidence',new.confidence));
-  elsif old.review_status is distinct from new.review_status or old.explanation is distinct from new.explanation then
+  elsif old.review_status is distinct from new.review_status or old.explanation is distinct from new.explanation or old.explanation_source is distinct from new.explanation_source or old.confidence is distinct from new.confidence then
    insert into audit_logs(action_name,actor_id,target_table,target_id,risk_level,details_json)
    values(case when new.review_status='approved' then 'approve_explanation' when new.explanation_source='ai' then 'draft_variance_explanation' else 'update_explanation' end,auth.uid(),tg_table_name,new.id,case when new.review_status='approved' then 'medium' else 'low' end,jsonb_build_object('previous_status',old.review_status,'review_status',new.review_status,'source',new.explanation_source,'confidence',new.confidence));
   end if;
@@ -65,7 +63,7 @@ end $$;
 create or replace function sync_line_variances() returns trigger language plpgsql set search_path=public as $$
 begin
  perform refresh_line_variances(new);
- if tg_op='UPDATE' and (old.account_name is distinct from new.account_name or old.account_category is distinct from new.account_category) then
+ if tg_op='UPDATE' and (old.account_name is distinct from new.account_name or old.account_category is distinct from new.account_category or old.property_id is distinct from new.property_id or old.period_id is distinct from new.period_id) then
   update variance_explanations set review_status=case when coalesce(explanation,'')='' then 'unreviewed' else 'draft' end where income_line_id=new.id;
  end if;
  return new;
@@ -105,3 +103,4 @@ create policy reports_demo_read on storage.objects for select using(bucket_id='m
 create policy reports_demo_insert on storage.objects for insert with check(bucket_id='management-reports');
 create policy reports_demo_delete on storage.objects for delete using(bucket_id='management-reports');
 commit;
+
