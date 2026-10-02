@@ -43,6 +43,7 @@ Apply missing migrations in order using Supabase administration access:
 
 - `0002_reporting_workflow.sql`: threshold settings, audit logs, recalculation triggers, review constraints, closed-period guards, private report bucket and demo storage policies.
 - `0003_commentary_review.sql`: atomic commentary save/approval with stale-data checks and protection from AI overwrite; upload period guard.
+- `0004_review_numeric_precision.sql`: browser numeric precision compatibility for recurring percentages while preserving stale-review rejection.
 
 Line changes recompute all three variance records in the same database transaction. Changed figures or account descriptions invalidate approval. Threshold changes reclassify materiality. Deletions require confirmation and a reason in the UI; database functions log them. Audit records cannot be changed through the anonymous API.
 

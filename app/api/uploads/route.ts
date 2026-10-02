@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/data/db";
 import { uuid, text } from "@/lib/actions/validation";
+import { validOrigin } from "@/lib/actions/origin";
 export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
  try {
-  if (request.headers.get("origin") && request.headers.get("origin") !== request.nextUrl.origin) throw new Error("Invalid request origin.");
+  if (!validOrigin(request)) throw new Error("Invalid request origin.");
   const form = await request.formData(), file = form.get("file");
   const property_id = uuid(form.get("property_id")), period_id = uuid(form.get("period_id"));
   const { data: period, error: periodError } = await db().from("reporting_periods").select("status").eq("id", period_id).single();
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 }
 export async function DELETE(request: NextRequest) {
  try {
-  if (request.headers.get("origin") && request.headers.get("origin") !== request.nextUrl.origin) throw new Error("Invalid request origin.");
+  if (!validOrigin(request)) throw new Error("Invalid request origin.");
   const values = await request.json(), id = uuid(values.id), reason = text(values.reason,"Deletion reason");
   if (values.confirm !== true) throw new Error("Confirm deletion.");
   const client = db(), { data, error } = await client.from("report_uploads").select("file_url").eq("id",id).single();

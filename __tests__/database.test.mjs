@@ -6,7 +6,7 @@ const database = new PGlite();
 const one = async (sql, params = []) => (await database.query(sql, params)).rows[0];
 test('database workflow: seed, insert, thresholds, review, staleness, closed period, audited deletion', async () => {
  await database.exec(`create schema auth; create function auth.uid() returns uuid language sql as 'select null::uuid'; create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); create table storage.objects(id uuid,bucket_id text); alter table storage.objects enable row level security;`);
- for (const name of ['0001_init.sql','0002_reporting_workflow.sql','0003_commentary_review.sql']) await database.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ for (const name of ['0001_init.sql','0002_reporting_workflow.sql','0003_commentary_review.sql','0004_review_numeric_precision.sql']) await database.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
  const property='a0000000-0000-4000-8000-000000000001', period='b0000000-0000-4000-8000-000000000001';
  const line=await one(`insert into income_statement_lines(property_id,period_id,account_name,account_category,actual,budget,prior_month,prior_ytd,ytd_actual) values($1,$2,'Integration rent','revenue',450000,400000,380000,900000,1350000) returning *`,[property,period]);
  const explanations=(await database.query('select * from variance_explanations where income_line_id=$1',[line.id])).rows;
@@ -19,6 +19,10 @@ test('database workflow: seed, insert, thresholds, review, staleness, closed per
  const changed=await one('select * from variance_explanations where id=$1',[row.id]);
  assert.equal(changed.review_status,'draft'); assert.equal(Number(changed.variance_amount),60000);
  await assert.rejects(database.query(`select save_variance_explanation($1,'Old figures','approved','human',null,$2,$3,'Verified new leases')`,[row.id,row.variance_amount,row.variance_pct]),/changed/);
+ await database.query('update income_statement_lines set actual=80000,budget=60000 where id=$1',[line.id]);
+ const recurring=await one('select * from variance_explanations where id=$1',[row.id]);
+ await database.query(`select save_variance_explanation($1,'Recurring percentage reviewed','draft','human',null,$2,$3,'Verified new leases')`,[row.id,Number(recurring.variance_amount),Number(recurring.variance_pct)]);
+ await assert.rejects(database.query(`select save_variance_explanation($1,'Stale percentage','approved','human',null,$2,$3,'Recurring percentage reviewed')`,[row.id,Number(recurring.variance_amount),Number(recurring.variance_pct)+0.01]),/changed/);
  await database.query(`insert into report_settings(property_id,period_id,amount_threshold,percent_threshold) values($1,$2,70000,10)`,[property,period]);
  assert.equal((await one('select is_material from variance_explanations where id=$1',[row.id])).is_material,false);
  await database.query(`update reporting_periods set status='closed' where id=$1`,[period]);

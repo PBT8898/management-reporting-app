@@ -4,6 +4,7 @@ import { listPeriods } from "@/lib/data/periods";
 import { listIncome, listBalance } from "@/lib/data/lines";
 import { rows } from "@/lib/data/db";
 import { mutate } from "@/lib/actions/core";
+import { validOrigin } from "@/lib/actions/origin";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
@@ -12,7 +13,7 @@ export async function GET() {
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load data. Please check your connection." }, { status: 503 }); }
 }
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") && request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  if (!validOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   try {
     const { operation, values } = await request.json();
     if (!values || typeof values !== "object") throw new Error("Invalid form data.");
